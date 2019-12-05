@@ -19,15 +19,25 @@ impl Password {
     
     fn is_valid(&self) -> bool {
         let mut same_flag = false;
+        let mut last: Option<u32> = None;
         
-        for i in 0..5 {            
-            if self.code[i + 1] < self.code[i] {
+        for i in 0..5 {      
+            let current = self.code[i];
+            let next = self.code[i + 1];
+                  
+            if next < current {
                 return false;
             }
 
-            if self.code[i + 1] == self.code[i] {
-                same_flag = true;
+            if next == current {
+                same_flag = same_flag | match i {
+                    0 => self.code[i + 2] != current,
+                    4 => last.unwrap() != current,
+                    _ => self.code[i + 2] != current && last.unwrap() != current
+                };
             }
+            
+            last = Some(current);
         }
         
         return same_flag;
@@ -52,7 +62,7 @@ fn main() {
 
 #[test]
 fn test_all() {
-    assert_eq!(Password::from_int(111_112).is_valid(), true);
-    assert_eq!(Password::from_int(223_450).is_valid(), false);
-    assert_eq!(Password::from_int(123_789).is_valid(), false);
+    assert_eq!(Password::from_int(112233).is_valid(), true);
+    assert_eq!(Password::from_int(123444).is_valid(), false);
+    assert_eq!(Password::from_int(111122).is_valid(), true);
 }
