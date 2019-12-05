@@ -68,17 +68,26 @@ impl FromStr for Travel {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug)]
+struct Intersection {
+    point: Point,
+    distance_1: Option<u32>,
+    distance_2: Option<u32>
+}
+
+impl Intersection {
+    fn total_distance(&self) -> u32 {
+        self.distance_1.unwrap() + self.distance_2.unwrap()
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
 struct Point {
     x: i32,
     y: i32
 }
 
 impl Point {
-    fn distance_from_home(&self) -> i32 {
-        (self.x).abs() + (self.y).abs()
-    }
-
     fn travel(&self, travel: &Travel) -> Point {
         let x = match &travel.direction {
             Direction::Up => self.x,
@@ -134,8 +143,8 @@ impl Line {
 }
 
 impl Wire {
-   fn closest_intersection_with(&self, wire: &Wire) -> Option<Point> {
-        let mut intersections: Vec<Point> = Vec::new();
+   fn closest_intersection_with(&self, wire: &Wire) -> Option<u32> {
+        let mut intersections: Vec<Intersection> = Vec::new();
 
         // Convert wire 1 to lines
         let mut last_point = Point { x: 0, y: 0};
@@ -149,6 +158,8 @@ impl Wire {
 
         // Follow wire 2 as it is constructed and mark all intersects
         let mut current_location = Point { x: 0, y: 0 };
+        let mut total_distance = 1;
+        
         for travel in &wire.travels {
             println!("Checking for intersects along travel {:?}", travel);
             
@@ -156,35 +167,62 @@ impl Wire {
                 current_location = current_location.mv(&travel.direction);
                 
                 // Check if any lines contain that point
-                for line in &lines {
-                    // Optimize: Parallel lines cannot contain it
-                    if line.travel.direction.is_parallel_to(&travel.direction) {
-                        continue;    
-                    }
-                    
+                for line in &lines {                    
                     if line.contains(&current_location) {
-                        intersections.push(current_location.clone());
+                        println!("Intersect found! {:?} {:?}", current_location, total_distance);
+                        intersections.push(Intersection { 
+                            point: current_location.clone(),
+                            distance_1: Some(total_distance),
+                            distance_2: None
+                        });
                     }
                 }
+                
+               total_distance += 1;
             }
         }
         
+        // Reiterate through the first wire and mark the distances at the intersects
+        current_location = Point { x: 0, y: 0 };
+        total_distance = 1;
+        
+        for travel in &self.travels {
+            for _ in 0..travel.distance {
+                current_location = current_location.mv(&travel.direction);
+                
+                for intersect in &mut intersections {
+                    if intersect.point == current_location {
+                        if intersect.distance_2 == None {
+                            intersect.distance_2 = Some(total_distance);
+                        }
+                    }
+                }
+                
+                total_distance += 1;
+            }
+        }
+        
+        println!("{:?}", intersections);
+        
+        
         // Go through all points and find the closest one
-        let mut closest_point: Option<Point> = None;
+        let mut closest_intersect: Option<u32> = None;
 
         for intersect in intersections {
-            closest_point = match closest_point {
-                Some(point) => 
-                    if point.distance_from_home() < intersect.distance_from_home() { 
-                        Some(point) 
+            let intersect_distance = intersect.total_distance();
+            
+            closest_intersect = match closest_intersect {
+                Some(distance) => 
+                    if distance < intersect_distance { 
+                        Some(distance)
                     } else { 
-                        Some(intersect) 
+                        Some(intersect_distance) 
                     },
-                None => Some(intersect)
+                None => Some(intersect_distance)
             }
         }
 
-        closest_point
+        closest_intersect
     } 
 }
 
@@ -194,7 +232,7 @@ fn main() {
     let wires: Vec<Wire> = input.lines().map(|l| Wire::from_str(l).unwrap()).collect();
     let intersect = wires.get(0).unwrap().closest_intersection_with(wires.get(1).unwrap()).unwrap();
     
-    println!("{:?}", intersect.distance_from_home());
+    println!("{:?}", intersect);
 }
 
 
@@ -204,7 +242,7 @@ fn test_case_1() {
     let wires: Vec<Wire> = input.lines().map(|l| Wire::from_str(l).unwrap()).collect();
     let intersect = wires.get(0).unwrap().closest_intersection_with(wires.get(1).unwrap()).unwrap();
 
-    assert_eq!(intersect.distance_from_home(), 159);
+    assert_eq!(intersect, 610);
 }
 
 #[test]
@@ -213,5 +251,14 @@ fn test_case_2() {
     let wires: Vec<Wire> = input.lines().map(|l| Wire::from_str(l).unwrap()).collect();
     let intersect = wires.get(0).unwrap().closest_intersection_with(wires.get(1).unwrap()).unwrap();
 
-    assert_eq!(intersect.distance_from_home(), 135);
+    assert_eq!(intersect, 410);
+}
+
+#[test]
+fn test_case_3() {
+    let input = "U7,R6,D4,L4\nR8,U5,L5,D3";
+    let wires: Vec<Wire> = input.lines().map(|l| Wire::from_str(l).unwrap()).collect();
+    let intersect = wires.get(0).unwrap().closest_intersection_with(wires.get(1).unwrap()).unwrap();
+
+    assert_eq!(intersect, 30);
 }
