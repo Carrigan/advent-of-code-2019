@@ -91,21 +91,25 @@ fn run_program(program: &mut Vec<u32>) {
 
 fn main() {
     let input = fs::read_to_string("input.txt").unwrap();
-    let mut program = string_to_program(input);
+    let master = string_to_program(input);
 
-    // 1202 alarm!
-    program[1] = 12;
-    program[2] = 2;
+    for noun in 0..99 {
+        for verb in 0..99 {
+            let mut program = master.clone();
 
-    run_program(&mut program);
-    println!("{:?}", program);
-}
+            program[1] = noun;
+            program[2] = verb;
 
-fn compare_outputs(program: &mut Vec<u32>, expected: &Vec<u32>) {
-    run_program(program);
-    for i in 0..program.len() {
-        assert_eq!(program[i], expected[i]);
+            run_program(&mut program);
+
+            if program[0] == 19690720 {
+                println!("Noun: {:?}, Verb: {:?}", noun, verb);
+                return;
+            }
+        }
     }
+
+    println!("No solution found")
 }
 
 #[test]
@@ -144,4 +148,11 @@ fn test_case_4() {
     let mut program = vec!(1,1,1,4,99,5,6,0,99);
     let expected = vec!(30,1,1,4,2,5,6,0,99);
     compare_outputs(&mut program, &expected);
+}
+
+fn compare_outputs(program: &mut Vec<u32>, expected: &Vec<u32>) {
+    run_program(program);
+    for i in 0..program.len() {
+        assert_eq!(program[i], expected[i]);
+    }
 }
