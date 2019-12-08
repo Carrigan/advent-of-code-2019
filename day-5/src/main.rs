@@ -25,6 +25,10 @@ enum InstructionCode {
     Multiplication,
     Input,
     Output,
+    JumpIfTrue,
+    JumpIfFalse,
+    LessThan,
+    Equals,
     Finish
 }
 
@@ -37,6 +41,10 @@ impl TryFrom<i32> for InstructionCode {
             2 => Ok(InstructionCode::Multiplication),
             3 => Ok(InstructionCode::Input),
             4 => Ok(InstructionCode::Output),
+            5 => Ok(InstructionCode::JumpIfTrue),
+            6 => Ok(InstructionCode::JumpIfFalse),
+            7 => Ok(InstructionCode::LessThan),
+            8 => Ok(InstructionCode::Equals),
             99 => Ok(InstructionCode::Finish),
             _ => Err(String::from("Invalid op code"))
         }
@@ -141,6 +149,48 @@ impl Program {
                     pc + 2
                 },
 
+                InstructionCode::JumpIfTrue => {
+                    let p1 = self.parameter_for(pc, 1, &instruction.modes);
+                    let p2 = self.parameter_for(pc, 2, &instruction.modes);
+
+                    match p1 {
+                        0 => pc + 3,
+                        _ => p2 as usize
+                    }
+                }
+
+                InstructionCode::JumpIfFalse => {
+                    let p1 = self.parameter_for(pc, 1, &instruction.modes);
+                    let p2 = self.parameter_for(pc, 2, &instruction.modes);
+
+                    match p1 {
+                        0 => p2 as usize,
+                        _ => pc + 3
+                    }
+                }
+
+                InstructionCode::LessThan => {
+                    let p1 = self.parameter_for(pc, 1, &instruction.modes);
+                    let p2 = self.parameter_for(pc, 2, &instruction.modes);
+                    let p3 = self.memory[pc + 3];
+                    
+                    let result = if p1 < p2 { 1 } else { 0 }; 
+                    self.store_result(result, p3);
+
+                    pc + 4
+                }
+
+                InstructionCode::Equals => {
+                    let p1 = self.parameter_for(pc, 1, &instruction.modes);
+                    let p2 = self.parameter_for(pc, 2, &instruction.modes);
+                    let p3 = self.memory[pc + 3];
+                    
+                    let result = if p1 == p2 { 1 } else { 0 }; 
+                    self.store_result(result, p3);
+
+                    pc + 4
+                }
+
                 InstructionCode::Finish => {
                     break 'program
                 }
@@ -168,7 +218,16 @@ impl Program {
 fn main() {
     let input = fs::read_to_string("input.txt").unwrap();
     let mut program = Program::from(input);
-    let diagnostic_codes = program.run(vec!(1));
+    let diagnostic_codes = program.run(vec!(5));
 
     println!("{:?}", diagnostic_codes);
+}
+
+#[test]
+fn test_program() {
+    let input = fs::read_to_string("test.txt").unwrap();
+    let mut program = Program::from(input);
+    let diagnostic_codes = program.run(vec!(8));
+
+    assert_eq!(*diagnostic_codes.last().unwrap(), 1000);
 }
