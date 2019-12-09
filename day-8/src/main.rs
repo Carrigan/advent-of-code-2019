@@ -1,6 +1,19 @@
-#[derive(Debug)]
+use std::fmt;
+
 struct Image {
-    layers: Vec<Layer>
+    layers: Vec<Layer>,
+    width: usize,
+    height: usize
+}
+
+impl fmt::Debug for Image {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for i in 0..self.layers.len() {
+            write!(f, "Layer {}\n{:?}\n\n", i, self.layers[i])?;
+        }
+
+        write!(f, "")
+    }
 }
 
 impl Image {
@@ -13,11 +26,11 @@ impl Image {
             if current.is_empty() { break }
 
             let remaining = current.split_off(layer_size);
-            layers.push(Layer::new(current));
+            layers.push(Layer::new(current, width));
             current = remaining;
         }
 
-        Image { layers }
+        Image { layers, width, height }
     }
 
     fn fewest_zero_checksum(&self) -> usize {
@@ -36,17 +49,50 @@ impl Image {
 
         zero_layer.checksum()
     }
+
+    fn decode(&self) -> Layer {
+        let mut transparent_layer_string = String::new();
+        for i in 0..(self.width * self.height) { transparent_layer_string.push('2') };
+        let mut composite = Layer::new(transparent_layer_string, self.width);
+
+        for layer in &self.layers {
+            for i in 0..layer.pixels.len() {
+                if composite.pixels[i] == 2 {
+                    composite.pixels[i] = layer.pixels[i];
+                }
+            }
+        }
+
+        composite
+    }
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 struct Layer {
+    width: usize,
     pixels: Vec<usize>
 }
 
+impl fmt::Debug for Layer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let rows = self.pixels.len() / self.width;
+
+        for row_i in 0..rows {
+            for col_i in 0..self.width {
+                write!(f, "{}", self.pixels[row_i * self.width + col_i])?;
+            }
+
+            write!(f, "\n")?;
+        }
+
+        write!(f, "")
+    }
+}
+
 impl Layer {
-    fn new(data: String) -> Self {
+    fn new(data: String, width: usize) -> Self {
         let pixels = data.chars().map(|c| c.to_digit(10).unwrap() as usize).collect();
-        Layer { pixels }
+        Layer { pixels, width }
     }
 
     fn checksum(&self) -> usize {
@@ -66,7 +112,7 @@ impl Layer {
 
 fn main() {
     let image = Image::new(std::fs::read_to_string("input.txt").unwrap(), 25, 6);
-    println!("Lowest checksum: {:?}", image.fewest_zero_checksum());
+    println!("{:?}", image.decode());
 }
 
 #[test]
