@@ -3,7 +3,7 @@ use intcode::Program;
 
 fn main() {
     let code = fs::read_to_string("input.txt").unwrap();
-    println!("{:?}", Program::from(code).run(&mut vec!(1)));
+    println!("{:?}", Program::from(code).run(&mut vec!(2)));
 }
 
 #[test]
