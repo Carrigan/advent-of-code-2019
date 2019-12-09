@@ -6,8 +6,8 @@ pub struct Instruction {
     modes: ParameterExtension
 }
 
-impl From<i32> for Instruction {
-    fn from(instruction: i32) -> Instruction {
+impl From<i64> for Instruction {
+    fn from(instruction: i64) -> Instruction {
         let code = instruction % 100;
         let extensions = instruction / 100;
 
@@ -28,13 +28,14 @@ pub enum InstructionCode {
     JumpIfFalse,
     LessThan,
     Equals,
+    RelativeBaseAdjust,
     Finish
 }
 
-impl TryFrom<i32> for InstructionCode {
+impl TryFrom<i64> for InstructionCode {
     type Error = String;
 
-    fn try_from(param: i32) -> Result<Self, Self::Error> {
+    fn try_from(param: i64) -> Result<Self, Self::Error> {
         match param {
             1 => Ok(InstructionCode::Addition),
             2 => Ok(InstructionCode::Multiplication),
@@ -44,6 +45,7 @@ impl TryFrom<i32> for InstructionCode {
             6 => Ok(InstructionCode::JumpIfFalse),
             7 => Ok(InstructionCode::LessThan),
             8 => Ok(InstructionCode::Equals),
+            9 => Ok(InstructionCode::RelativeBaseAdjust),
             99 => Ok(InstructionCode::Finish),
             _ => Err(String::from("Invalid op code"))
         }
@@ -53,7 +55,8 @@ impl TryFrom<i32> for InstructionCode {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ParameterMode {
     Position,
-    Immediate
+    Immediate,
+    Relative
 }
 
 #[derive(Debug)]
@@ -61,8 +64,8 @@ pub struct ParameterExtension {
     modes: Vec<ParameterMode>
 }
 
-impl From<i32> for ParameterExtension {
-    fn from(params: i32) -> Self {
+impl From<i64> for ParameterExtension {
+    fn from(params: i64) -> Self {
         let mut modes: Vec<ParameterMode> = Vec::new();
         let mut n = params;
 
@@ -70,6 +73,7 @@ impl From<i32> for ParameterExtension {
             let current_int = n % 10;
             let current_mode = match current_int {
                 1 => ParameterMode::Immediate,
+                2 => ParameterMode::Relative,
                 _ => ParameterMode::Position
             };
 
@@ -92,29 +96,34 @@ impl ParameterExtension {
 }
 
 pub struct Program {
-    memory: Vec<i32>,
+    memory: Vec<i64>,
     pc: usize,
-    inputs: Vec<i32>
+    inputs: Vec<i64>,
+    relative_base: i64
 }
 
 impl From<String> for Program {
     fn from(program_string: String) -> Self {
+        let mut memory: Vec<i64> = program_string.split(",").map(|s| s.parse::<i64>().unwrap()).collect();
+        for _ in 0..2000 { memory.push(0); }
+
         Program {
-            memory: program_string.split(",").map(|s| s.parse::<i32>().unwrap()).collect(),
+            memory,
             pc: 0,
-            inputs: Vec::new()
+            inputs: Vec::new(),
+            relative_base: 0
         }
     }
 }
 
 pub enum ProgramResult {
-    Output(i32),
+    Output(i64),
     Complete
 }
 
 impl Program {
-    pub fn run(&mut self, inputs: &mut Vec<i32>) -> Vec<i32> {
-        let mut codes: Vec<i32> = Vec::new();
+    pub fn run(&mut self, inputs: &mut Vec<i64>) -> Vec<i64> {
+        let mut codes: Vec<i64> = Vec::new();
 
         self.append_inputs(inputs);
 
@@ -130,7 +139,7 @@ impl Program {
         codes
     }
 
-    pub fn append_inputs(&mut self, inputs: &mut Vec<i32>) {
+    pub fn append_inputs(&mut self, inputs: &mut Vec<i64>) {
         self.inputs.append(inputs);
     }
 
@@ -143,8 +152,10 @@ impl Program {
                 InstructionCode::Addition => {
                     let p1 = self.parameter_for(self.pc, 1, &instruction.modes);
                     let p2 = self.parameter_for(self.pc, 2, &instruction.modes);
+                    let destination = self.destination_for(self.pc, 3, &instruction.modes);
 
-                    self.store_result(p1 + p2, self.memory[self.pc + 3]);
+
+                    self.store_result(p1 + p2, destination);
 
                     self.pc + 4
                 },
@@ -152,22 +163,25 @@ impl Program {
                 InstructionCode::Multiplication => {
                     let p1 = self.parameter_for(self.pc, 1, &instruction.modes);
                     let p2 = self.parameter_for(self.pc, 2, &instruction.modes);
-                    let p3 = self.memory[self.pc + 3];
+                    let destination = self.destination_for(self.pc, 3, &instruction.modes);
 
-                    self.store_result(p1 * p2, p3);
+                    self.store_result(p1 * p2, destination);
 
                     self.pc + 4
                 },
 
                 InstructionCode::Input => {
                     let next_input = self.inputs.remove(0);
-                    self.store_result(next_input, self.memory[self.pc + 1]);
+                    let destination = self.destination_for(self.pc, 1, &instruction.modes);
+
+                    self.store_result(next_input, destination);
 
                     self.pc + 2
                 },
 
                 InstructionCode::Output => {
-                    result = Some(ProgramResult::Output(self.parameter_for(self.pc, 1, &instruction.modes)));
+                    let output = self.parameter_for(self.pc, 1, &instruction.modes);
+                    result = Some(ProgramResult::Output(output));
 
                     self.pc + 2
                 },
@@ -195,10 +209,10 @@ impl Program {
                 InstructionCode::LessThan => {
                     let p1 = self.parameter_for(self.pc, 1, &instruction.modes);
                     let p2 = self.parameter_for(self.pc, 2, &instruction.modes);
-                    let p3 = self.memory[self.pc + 3];
+                    let destination = self.destination_for(self.pc, 3, &instruction.modes);
                     
                     let result = if p1 < p2 { 1 } else { 0 }; 
-                    self.store_result(result, p3);
+                    self.store_result(result, destination);
 
                     self.pc + 4
                 }
@@ -206,12 +220,19 @@ impl Program {
                 InstructionCode::Equals => {
                     let p1 = self.parameter_for(self.pc, 1, &instruction.modes);
                     let p2 = self.parameter_for(self.pc, 2, &instruction.modes);
-                    let p3 = self.memory[self.pc + 3];
+                    let destination = self.destination_for(self.pc, 3, &instruction.modes);
                     
                     let result = if p1 == p2 { 1 } else { 0 }; 
-                    self.store_result(result, p3);
+                    self.store_result(result, destination);
 
                     self.pc + 4
+                }
+
+                InstructionCode::RelativeBaseAdjust => {
+                    let p1 = self.parameter_for(self.pc, 1, &instruction.modes);
+                    self.relative_base = self.relative_base + p1;
+
+                    self.pc + 2
                 }
 
                 InstructionCode::Finish => {
@@ -227,17 +248,28 @@ impl Program {
         }
     }
 
-    fn parameter_for(&self, pc: usize, index: usize, ext: &ParameterExtension) -> i32 {
+    fn parameter_for(&self, pc: usize, index: usize, ext: &ParameterExtension) -> i64 {
         let mode = ext.at_position(index - 1);
         let value = self.memory[pc + index];
 
         match mode {
             ParameterMode::Position => self.memory[value as usize],
+            ParameterMode::Relative => self.memory[(value + self.relative_base) as usize],
             _ => value
         }
     }
 
-    fn store_result(&mut self, result: i32, position: i32) {
+    fn destination_for(&self, pc: usize, index: usize, ext: &ParameterExtension) -> i64 {
+        let mode = ext.at_position(index - 1);
+        let value = self.memory[pc + index];
+
+        match mode {
+            ParameterMode::Relative => value + self.relative_base,
+            _ => value
+        }
+    }
+
+    fn store_result(&mut self, result: i64, position: i64) {
         self.memory[position as usize] = result;
     }
 }
