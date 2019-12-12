@@ -1,7 +1,7 @@
 extern crate regex;
 use regex::Regex;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 struct Body {
     x_pos: i64,
     y_pos: i64,
@@ -81,7 +81,7 @@ impl Body {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 struct State {
     bodies: Vec<Body>
 }
@@ -125,21 +125,48 @@ impl State {
     }
 }
 
+fn run_until_looped(state: &mut State) -> usize {
+    let mut history: Vec<State> = Vec::new();
+    let mut iterations = 0;
+    
+    loop {
+        // Clone the current state and record it
+        let record = state.clone();
+        history.push(record);
+
+        // Print our debug
+        if iterations % 10_000 == 0 { println!("Iterations run: {}", iterations); }
+        
+        // Proceed
+        state.step();
+        iterations += 1;
+
+
+        // If it is the same as any others, break
+        for r in &history {
+            if r == state { return iterations; }
+        }
+    }
+}
+
 fn main() {
     let mut state = State::from(std::fs::read_to_string("input.txt").unwrap());
-    
-    for _ in 0..1000 { state.step(); }
-
-    println!("Total energy: {}", state.total_energy());
+    let iters = run_until_looped(&mut state);
+    println!("Done - {}", iters);
 }
 
 #[test]
 fn test() {
     let mut state = State::from(std::fs::read_to_string("test1.txt").unwrap());
-    for x in 0..10 {
-        state.step();
-        println!("Step {}: {:?}", x + 1, state);
-    }
+    let iters = run_until_looped(&mut state);
 
-    println!("Total energy: {}", state.total_energy());
+    assert_eq!(iters, 2772);
+}
+
+#[test]
+fn test_2() {
+    let mut state = State::from(std::fs::read_to_string("test2.txt").unwrap());
+    let iters = run_until_looped(&mut state);
+
+    assert_eq!(iters, 4686774924);
 }
