@@ -36,7 +36,7 @@ struct Space {
 
 impl Space {
     fn new() -> Self {
-        Space { visited: Vec::new() }
+        Space { visited: vec!(Point { x: 0, y: 0, color: Color::White }) }
     }
 
     fn update(&mut self, x: i64, y: i64, color: Color) {
@@ -153,5 +153,11 @@ fn main() {
         println!("Visited: {:?} {:?} -> {:?}", visitation.x, visitation.y, visitation.color);
     }
 
-    println!("Total visited: {:?}", space.visited.len());
+    for y in 0..6 {
+        for x in 0..41 {
+            print!("{}", if space.color_of(x, 0 - y) == Color::White { '#' } else { ' ' });
+        }
+
+        println!("");
+    }
 }
