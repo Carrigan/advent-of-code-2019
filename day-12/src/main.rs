@@ -1,7 +1,7 @@
 extern crate regex;
 use regex::Regex;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 struct Body {
     x_pos: i64,
     y_pos: i64,
@@ -9,6 +9,19 @@ struct Body {
     x_vel: i64,
     y_vel: i64,
     z_vel: i64,
+}
+
+impl PartialEq for Body {
+    fn eq(&self, other: &Self) -> bool {
+        if other.x_vel != self.x_vel { return false; }
+        if other.y_vel != self.y_vel { return false; }
+        if other.z_vel != self.z_vel { return false; }
+        if other.x_pos != self.x_pos { return false; }
+        if other.y_pos != self.y_pos { return false; }
+        if other.z_pos != self.z_pos { return false; }
+
+        true
+    }
 }
 
 impl From<&str> for Body {
@@ -125,15 +138,14 @@ impl State {
     }
 }
 
-fn run_until_looped(state: &mut State) -> usize {
-    let mut history: Vec<State> = Vec::new();
+fn run_until_lcms(state: &mut State) -> (usize, usize, usize) {
     let mut iterations = 0;
+
+    let mut x_lcm: Option<usize> = None;
+    let mut y_lcm: Option<usize> = None;
+    let mut z_lcm: Option<usize> = None;
     
     loop {
-        // Clone the current state and record it
-        let record = state.clone();
-        history.push(record);
-
         // Print our debug
         if iterations % 10_000 == 0 { println!("Iterations run: {}", iterations); }
         
@@ -141,32 +153,39 @@ fn run_until_looped(state: &mut State) -> usize {
         state.step();
         iterations += 1;
 
+        // Check if each dimension is halted
+        if x_lcm == None && state.bodies.iter().all(|b| b.x_vel == 0) { x_lcm = Some(iterations); }
+        if y_lcm == None && state.bodies.iter().all(|b| b.y_vel == 0) { y_lcm = Some(iterations); }
+        if z_lcm == None && state.bodies.iter().all(|b| b.z_vel == 0) { z_lcm = Some(iterations); }
 
         // If it is the same as any others, break
-        for r in &history {
-            if r == state { return iterations; }
+        match (x_lcm, y_lcm, z_lcm) {
+            (Some(x), Some(y), Some(z)) => return (x, y, z),
+            _ => continue
         }
     }
 }
 
 fn main() {
     let mut state = State::from(std::fs::read_to_string("input.txt").unwrap());
-    let iters = run_until_looped(&mut state);
-    println!("Done - {}", iters);
+    let (x, y ,z) = run_until_lcms(&mut state);
+    println!("Done - {} {} {}", x, y, z);
 }
 
 #[test]
 fn test() {
     let mut state = State::from(std::fs::read_to_string("test1.txt").unwrap());
-    let iters = run_until_looped(&mut state);
+    let (x, y, z) = run_until_lcms(&mut state);
 
-    assert_eq!(iters, 2772);
+    assert_eq!(x, 9);
+    assert_eq!(y, 14);
+    assert_eq!(z, 22);
 }
 
 #[test]
 fn test_2() {
     let mut state = State::from(std::fs::read_to_string("test2.txt").unwrap());
-    let iters = run_until_looped(&mut state);
+    let (x, y, z) = run_until_lcms(&mut state);
 
-    assert_eq!(iters, 4686774924);
+    println!("Done - {} {} {}", x, y, z);
 }
