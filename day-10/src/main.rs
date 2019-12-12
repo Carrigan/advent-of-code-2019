@@ -22,7 +22,7 @@ impl From<char> for ObjectType {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct Object {
     point_type: ObjectType,
     x: usize,
@@ -62,16 +62,53 @@ impl From<String> for Space {
 
 impl Space {
     fn find_best_station(&self) -> BaseStation {
-        BaseStation {
-            x: 0,
-            y: 0,
-            count: 0
+        let mut best_station: Option<BaseStation> = None;
+
+        for object in &self.objects {
+            // We can only build on asteroids
+            if object.point_type == ObjectType::Empty {
+                continue;
+            }
+
+            let mut this_station = BaseStation {
+                x: object.x,
+                y: object.y,
+                count: 0
+            };
+
+            for comparison in &self.objects {
+                // We are only looking for asteroids that are not this asteroid
+                if comparison.point_type == ObjectType::Empty || object == comparison { 
+                    continue; 
+                }
+
+                if self.can_see(object, comparison) {
+                    println!("- {:?} can see {:?}", object, comparison);
+                    this_station.count += 1;
+                } else {
+                    println!("- {:?} cannot see {:?}", object, comparison);
+                }
+            }
+
+            println!("First station established: {:?}", this_station);
+            
+            best_station = match best_station {
+                None => { 
+                    Some(this_station)
+                },
+                Some(station) => 
+                    if this_station.count > station.count { 
+                        Some(this_station) 
+                    } else { 
+                        Some(station) 
+                    }
+            }
         }
+
+        best_station.unwrap()
     }
 
     fn can_see(&self, obj: &Object, other: &Object) -> bool {
-        println!("{} {}", other.x, other.y);
-
         for point in SpaceIterator::new(obj, other) {
             let object_type = self.object_at(point.x, point.y);
 
@@ -160,6 +197,7 @@ struct SpaceResult {
     y: usize
 }
 
+#[derive(Debug)]
 struct BaseStation {
     x: usize,
     y: usize,
@@ -188,6 +226,16 @@ fn simple_test() {
 #[test]
 fn test_1() {
     let space_diagram = fs::read_to_string("test1.txt").unwrap();
+    let space = Space::from(space_diagram);
+    let station = space.find_best_station();
+    assert_eq!(station.x, 3);
+    assert_eq!(station.y, 4);
+    assert_eq!(station.count, 8);
+}
+
+#[test]
+fn test_2() {
+    let space_diagram = fs::read_to_string("test2.txt").unwrap();
     let space = Space::from(space_diagram);
     let station = space.find_best_station();
     assert_eq!(station.x, 5);
